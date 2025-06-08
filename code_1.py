@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+import joblib
+import re
 from datetime import datetime
 
 # Thiết lập giao diện
@@ -10,11 +12,14 @@ st.markdown("""
 Phân tích các bài đánh giá game từ người chơi thực tế, bao gồm thời lượng chơi, nhận xét, và rating.
 """)
 
+# Load mô hình và vectorizer
+model = joblib.load("trained/game_rating_model.pkl")
+vectorizer = joblib.load("trained/tfidf_vectorizer.pkl")
+
 # Load dữ liệu
 CSV_PATH = "sample_pred_results.csv"
 
 @st.cache_data
-
 def load_data():
     df = pd.read_csv(CSV_PATH)
     df['date_posted'] = pd.to_datetime(df['date_posted'])
@@ -81,6 +86,12 @@ with st.expander("📄 Xem toàn bộ nội dung đánh giá"):
         st.markdown(f"> {row['review']}")
         st.markdown("---")
 
+# Hàm làm sạch văn bản
+def clean_text(text):
+    text = re.sub(r"[^a-zA-Z0-9\s]", "", text)
+    text = text.lower().strip()
+    return text
+
 # Thêm đánh giá mới
 st.subheader("✍️ Nhập đánh giá game mới")
 with st.form("review_form"):
@@ -91,6 +102,10 @@ with st.form("review_form"):
     submitted = st.form_submit_button("Lưu đánh giá")
 
     if submitted:
+        cleaned_review = clean_text(new_review)
+        tfidf_vector = vectorizer.transform([cleaned_review])
+        predicted_rating = int(model.predict(tfidf_vector)[0])
+
         new_entry = {
             "date_posted": datetime.now().strftime("%Y-%m-%d"),
             "funny": 0,
@@ -103,8 +118,9 @@ with st.form("review_form"):
             "playtime": new_playtime,
             "review_length": len(new_review),
             "word_count": len(new_review.split()),
-            "predicted_rating": new_rating
+            "predicted_rating": predicted_rating
         }
+
         new_df = pd.DataFrame([new_entry])
         new_df.to_csv(CSV_PATH, mode='a', header=False, index=False)
-        st.success("Đánh giá mới đã được lưu thành công! Hãy tải lại trang để xem cập nhật.")
+        st.success("Đánh giá mới đã được lưu thành công với rating dự đoán! Hãy tải lại trang để xem cập nhật.")
