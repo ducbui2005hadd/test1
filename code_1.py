@@ -5,6 +5,27 @@ import joblib
 import re
 from datetime import datetime
 import os
+import zipfile
+import glob
+
+# Giải nén mô hình nếu bị chia nhỏ theo định dạng .z01, .z02, ..., .zip
+model_parts_pattern = "game_rating_model_compressed.z*"
+model_zip_parts = sorted(glob.glob(model_parts_pattern))
+model_zip_parts.append("game_rating_model_compressed.zip")
+merged_zip_path = "game_rating_model_merged.zip"
+model_path = "game_rating_model.pkl"
+
+if not os.path.exists(model_path):
+    try:
+        with open(merged_zip_path, "wb") as merged:
+            for part in model_zip_parts:
+                with open(part, "rb") as p:
+                    merged.write(p.read())
+        with zipfile.ZipFile(merged_zip_path, "r") as zip_ref:
+            zip_ref.extractall(".")
+        os.remove(merged_zip_path)
+    except Exception as e:
+        st.warning(f"Không thể giải nén mô hình: {e}")
 
 # Thiết lập giao diện
 st.set_page_config(page_title="📊 Game Review Explorer", page_icon="🎮")
@@ -15,8 +36,8 @@ Phân tích các bài đánh giá game từ người chơi thực tế, bao gồ
 
 # Load mô hình và vectorizer một cách an toàn
 model, vectorizer = None, None
-model_path = "trained/game_rating_model.pkl"
-vectorizer_path = "trained/tfidf_vectorizer.pkl"
+model_path = "game_rating_model.pkl"
+vectorizer_path = "tfidf_vectorizer.pkl"
 
 try:
     if os.path.exists(model_path) and os.path.exists(vectorizer_path):
